@@ -1,60 +1,121 @@
-import './style.css'
-import heroImg from './assets/hero.png'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import { setupCounter } from './counter.ts'
+const daysOfWeek: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+type TemperatureData = { day: string; temperature: number };
+let savedData: TemperatureData[] = [];
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+const colorTemperatureCells = (): void => {
+  const cells = document.querySelectorAll<HTMLTableCellElement>('#adat-tablazat td:nth-child(2)');
 
-<div class="ticks"></div>
+  cells.forEach(cell => {
+    const temperature = Number(cell.textContent);
+    cell.style.backgroundColor = '';
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+    if (Number.isFinite(temperature)) {
+      if (temperature < 10) {
+        cell.style.backgroundColor = 'blue';
+      } else if (temperature >= 30) {
+        cell.style.backgroundColor = '#E97451';
+      }
+    }
+  });
+};
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+const getWeatherData = async (): Promise<void> => {
+  try {
+    const response = await fetch('https://petrik-idojaras-default-rtdb.europe-west1.firebasedatabase.app/.json');
+    if (!response.ok) throw new Error(`HTTP hiba: ${response.status}`);
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+    const data = await response.json() as Record<string, unknown>;
+    const tbody = document.querySelector<HTMLTableSectionElement>('#adat-tablazat tbody');
+    if (!tbody) return;
+
+    tbody.replaceChildren();
+    const adatok = Array.isArray(data)
+      ? data
+      : daysOfWeek.map(day => ({ day, temperature: data[day] }))
+          .filter(adat => adat.temperature !== undefined && adat.temperature !== null);
+
+    savedData = adatok.map((adat, index): TemperatureData => {
+      const value = typeof adat === 'object' && adat !== null
+        ? adat as { day?: string; temperature?: number }
+        : { temperature: adat as number };
+      return {
+        day: value.day ?? daysOfWeek[index] ?? '',
+        temperature: Number(value.temperature)
+      };
+    }).filter(adat => Number.isFinite(adat.temperature));
+
+    savedData.forEach(adat => {
+      const row = document.createElement('tr');
+      const dayCell = document.createElement('td');
+      const temperatureCell = document.createElement('td');
+
+      dayCell.textContent = adat.day;
+      temperatureCell.textContent = String(adat.temperature);
+      row.append(dayCell, temperatureCell);
+      tbody.appendChild(row);
+    });
+  } catch (error) {
+    console.error('Hiba az időjárási adatok betöltésekor:', error);
+  }
+
+  colorTemperatureCells();
+};
+
+const createTemperatureForm = (): void => {
+  const table = document.querySelector<HTMLTableElement>('#adat-tablazat');
+  if (!table || document.querySelector('#homerseklet-urlap')) return;
+
+  const form = document.createElement('form');
+  form.id = 'homerseklet-urlap';
+
+  const temperatureInput = document.createElement('input');
+  temperatureInput.type = 'number';
+  temperatureInput.step = '0.1';
+  temperatureInput.required = true;
+  temperatureInput.placeholder = 'Hőmérséklet (°C)';
+  temperatureInput.setAttribute('aria-label', 'Hőmérséklet');
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Hozzáadás';
+
+  form.append(temperatureInput, submitButton);
+  table.before(form);
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const temperature = Number(temperatureInput.value);
+    if (!Number.isFinite(temperature)) return;
+
+    const dayIndex = (new Date().getDay() + 6) % 7;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    const row = document.createElement('tr');
+    const dayCell = document.createElement('td');
+    const temperatureCell = document.createElement('td');
+    dayCell.textContent = daysOfWeek[dayIndex];
+    temperatureCell.textContent = String(temperature);
+    savedData.push({ day: daysOfWeek[dayIndex], temperature });
+    row.append(dayCell, temperatureCell);
+    tbody.appendChild(row);
+    colorTemperatureCells();
+    form.reset();
+  });
+
+  const exportButton = document.createElement('button');
+  exportButton.type = 'button';
+  exportButton.textContent = 'Export';
+  const exportField = document.createElement('textarea');
+  exportField.rows = 10;
+  exportField.readOnly = true;
+  exportField.setAttribute('aria-label', 'Exportált adatok');
+  table.after(exportButton, exportField);
+  exportButton.addEventListener('click', () => {
+    exportField.value = JSON.stringify(savedData, null, 2);
+  });
+};
+
+getWeatherData();
+createTemperatureForm();
+
