@@ -87,7 +87,8 @@ const createTemperatureForm = (): void => {
     const temperature = Number(temperatureInput.value);
     if (!Number.isFinite(temperature)) return;
 
-    const dayIndex = (new Date().getDay() + 6) % 7;
+
+    const dayIndex = savedData.length % daysOfWeek.length;
     const tbody = table.querySelector('tbody');
     if (!tbody) return;
 
